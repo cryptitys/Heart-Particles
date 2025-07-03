@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Interactive Heart Particles</title>
+  <title>Beautiful Heart Particles</title>
   <style>
     body {
       margin: 0;
@@ -18,18 +18,8 @@
 
     canvas {
       display: block;
-      cursor: pointer;
-    }
-
-    .controls {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      color: white;
-      background: rgba(0, 0, 0, 0.5);
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 14px;
+      width: 100%;
+      height: 100%;
     }
 
     .title {
@@ -40,37 +30,30 @@
       width: 100%;
       font-size: 2.5em;
       text-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
+      z-index: 10;
     }
   </style>
 </head>
 
 <body>
-  <h1 class="title">Heart Particles Animation</h1>
+  <h1 class="title">Heart Particles</h1>
   <canvas id="pinkboard"></canvas>
-  <div class="controls">
-    <p>Click/tap to change color</p>
-    <p>Mouse move affects particles</p>
-  </div>
 
   <script>
-    // Configurações melhoradas e parametrizadas
+    // Configurações ajustadas para coração maior
     const settings = {
       particles: {
-        length: 15000, // Aumentado para efeito mais denso
-        duration: 3,   // Tempo de vida reduzido para animação mais dinâmica
-        velocity: 100, // Velocidade aumentada
-        effect: -1.5,  // Efeito mais pronunciado
-        size: 10,      // Tamanho aumentado
-        colors: ['#ff3b3b', '#ff6b6b', '#ff9e9e', '#ffd8d8'], // Cores variadas
-        currentColor: 0
-      },
-      interaction: {
-        radius: 150,   // Raio de influência do mouse
-        strength: 0.2  // Força de interação
+        length: 20000, // Mais partículas para preencher melhor
+        duration: 2.5, // Vida mais curta para animação mais dinâmica
+        velocity: 120, // Velocidade aumentada
+        effect: -1.2,  // Efeito suave
+        size: 6,       // Tamanho reduzido para detalhes melhores
+        colors: ['#ff3366', '#ff6699', '#ff99cc', '#ffcccc'], // Tons de rosa/vermelho
+        scale: 1.8     // Fator de escala para o coração
       }
     };
 
-    // Polyfill para requestAnimationFrame (mantido para compatibilidade)
+    // Polyfill para requestAnimationFrame
     (function() {
       var b = 0;
       var c = ["ms", "moz", "webkit", "o"];
@@ -127,12 +110,6 @@
         }
         return this;
       }
-      
-      distanceTo(point) {
-        const dx = this.x - point.x;
-        const dy = this.y - point.y;
-        return Math.sqrt(dx * dx + dy * dy);
-      }
     }
 
     // Classe Particle otimizada
@@ -156,18 +133,7 @@
         this.colorIndex = colorIndex;
       }
       
-      update(deltaTime, mousePos) {
-        // Adiciona interação com o mouse
-        if (mousePos) {
-          const dist = this.position.distanceTo(mousePos);
-          if (dist < settings.interaction.radius) {
-            const force = (settings.interaction.radius - dist) / settings.interaction.radius;
-            const angle = Math.atan2(this.position.y - mousePos.y, this.position.x - mousePos.x);
-            this.velocity.x += Math.cos(angle) * force * settings.interaction.strength;
-            this.velocity.y += Math.sin(angle) * force * settings.interaction.strength;
-          }
-        }
-        
+      update(deltaTime) {
         this.position.x += this.velocity.x * deltaTime;
         this.position.y += this.velocity.y * deltaTime;
         this.velocity.x += this.acceleration.x * deltaTime;
@@ -208,12 +174,11 @@
         }
       }
       
-      update(deltaTime, mousePos) {
+      update(deltaTime) {
         let i = this.firstActive;
         while (i !== this.firstFree) {
-          this.particles[i].update(deltaTime, mousePos);
+          this.particles[i].update(deltaTime);
           
-          // Remove partículas velhas
           if (this.particles[i].age >= settings.particles.duration && i === this.firstActive) {
             this.firstActive = (this.firstActive + 1) % this.particles.length;
           }
@@ -237,18 +202,17 @@
       const particles = new ParticlePool(settings.particles.length);
       const particleRate = settings.particles.length / settings.particles.duration;
       let time;
-      let mousePos = null;
       let images = [];
       
-      // Função para gerar o formato de coração
+      // Função para gerar o formato de coração (ajustada para tamanho maior)
       function pointOnHeart(t) {
         return new Point(
-          160 * Math.pow(Math.sin(t), 3),
-          130 * Math.cos(t) -
+          200 * settings.particles.scale * Math.pow(Math.sin(t), 3),
+          settings.particles.scale * (130 * Math.cos(t) -
           50 * Math.cos(2 * t) -
           20 * Math.cos(3 * t) -
           10 * Math.cos(4 * t) +
-          25
+          25)
         );
       }
       
@@ -262,8 +226,8 @@
           
           function to(t) {
             const point = pointOnHeart(t);
-            point.x = settings.particles.size / 2 + (point.x * settings.particles.size) / 350;
-            point.y = settings.particles.size / 2 - (point.y * settings.particles.size) / 350;
+            point.x = settings.particles.size / 2 + (point.x * settings.particles.size) / (350 * settings.particles.scale);
+            point.y = settings.particles.size / 2 - (point.y * settings.particles.size) / (350 * settings.particles.scale);
             return point;
           }
           
@@ -295,7 +259,7 @@
         time = newTime;
         
         // Limpa o canvas com um retângulo semi-transparente para efeito de rastro
-        context.fillStyle = 'rgba(22, 33, 62, 0.2)';
+        context.fillStyle = 'rgba(22, 33, 62, 0.15)';
         context.fillRect(0, 0, canvas.width, canvas.height);
         
         // Adiciona novas partículas
@@ -314,7 +278,7 @@
           );
         }
         
-        particles.update(deltaTime, mousePos);
+        particles.update(deltaTime);
         particles.draw(context, images);
       }
       
@@ -322,44 +286,6 @@
       function onResize() {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
-      }
-      
-      // Event listeners para interação
-      canvas.addEventListener('mousemove', (e) => {
-        mousePos = new Point(e.clientX, e.clientY);
-      });
-      
-      canvas.addEventListener('mouseleave', () => {
-        mousePos = null;
-      });
-      
-      canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        mousePos = new Point(touch.clientX, touch.clientY);
-      }, { passive: false });
-      
-      canvas.addEventListener('touchend', () => {
-        mousePos = null;
-      });
-      
-      // Troca de cor ao clicar
-      canvas.addEventListener('click', () => {
-        settings.particles.currentColor = 
-          (settings.particles.currentColor + 1) % settings.particles.colors.length;
-        settings.particles.colors = [
-          getRandomColor(),
-          getRandomColor(),
-          getRandomColor(),
-          getRandomColor()
-        ];
-        images = createImages();
-      });
-      
-      // Função auxiliar para gerar cores aleatórias
-      function getRandomColor() {
-        const hue = Math.floor(Math.random() * 360);
-        return `hsl(${hue}, 100%, 70%)`;
       }
       
       // Inicialização
@@ -376,4 +302,4 @@
     })(document.getElementById("pinkboard"));
   </script>
 </body>
-    </html>
+</html>
