@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Partículas em Coração</title>
-  <!-- créditos para: https://github.com/cryptitys -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive Heart Particles</title>
   <style>
     body {
       margin: 0;
@@ -12,27 +11,66 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
-      background-color: #262626;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
     }
 
     canvas {
       display: block;
+      cursor: pointer;
+    }
+
+    .controls {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      color: white;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    .title {
+      position: absolute;
+      top: 20px;
+      color: white;
+      text-align: center;
+      width: 100%;
+      font-size: 2.5em;
+      text-shadow: 0 0 10px rgba(255, 0, 0, 0.7);
     }
   </style>
 </head>
 
 <body>
-  <canvas id="pinkboard" style="width: 100%; height: 100%;"></canvas>
+  <h1 class="title">Heart Particles Animation</h1>
+  <canvas id="pinkboard"></canvas>
+  <div class="controls">
+    <p>Click/tap to change color</p>
+    <p>Mouse move affects particles</p>
+  </div>
+
   <script>
-    var settings = {
+    // Configurações melhoradas e parametrizadas
+    const settings = {
       particles: {
-        length: 10000,
-        duration: 4,
-        velocity: 80,
-        effect: -1.3,
-        size: 8,
+        length: 15000, // Aumentado para efeito mais denso
+        duration: 3,   // Tempo de vida reduzido para animação mais dinâmica
+        velocity: 100, // Velocidade aumentada
+        effect: -1.5,  // Efeito mais pronunciado
+        size: 10,      // Tamanho aumentado
+        colors: ['#ff3b3b', '#ff6b6b', '#ff9e9e', '#ffd8d8'], // Cores variadas
+        currentColor: 0
       },
+      interaction: {
+        radius: 150,   // Raio de influência do mouse
+        strength: 0.2  // Força de interação
+      }
     };
+
+    // Polyfill para requestAnimationFrame (mantido para compatibilidade)
     (function() {
       var b = 0;
       var c = ["ms", "moz", "webkit", "o"];
@@ -59,39 +97,55 @@
         };
       }
     })();
-    var Point = (function() {
-      function Point(x, y) {
-        this.x = typeof x !== "undefined" ? x : 0;
-        this.y = typeof y !== "undefined" ? y : 0;
+
+    // Classe Point otimizada
+    class Point {
+      constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
       }
-      Point.prototype.clone = function() {
+      
+      clone() {
         return new Point(this.x, this.y);
-      };
-      Point.prototype.length = function(length) {
-        if (typeof length == "undefined") {
+      }
+      
+      length(length) {
+        if (typeof length === "undefined") {
           return Math.sqrt(this.x * this.x + this.y * this.y);
         }
         this.normalize();
         this.x *= length;
         this.y *= length;
         return this;
-      };
-      Point.prototype.normalize = function() {
-        var length = this.length();
-        this.x /= length;
-        this.y /= length;
+      }
+      
+      normalize() {
+        const len = this.length();
+        if (len > 0) {
+          this.x /= len;
+          this.y /= len;
+        }
         return this;
-      };
-      return Point;
-    })();
-    var Particle = (function() {
-      function Particle() {
+      }
+      
+      distanceTo(point) {
+        const dx = this.x - point.x;
+        const dy = this.y - point.y;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+    }
+
+    // Classe Particle otimizada
+    class Particle {
+      constructor() {
         this.position = new Point();
         this.velocity = new Point();
         this.acceleration = new Point();
         this.age = 0;
+        this.colorIndex = 0;
       }
-      Particle.prototype.initialize = function(x, y, dx, dy) {
+      
+      initialize(x, y, dx, dy, colorIndex) {
         this.position.x = x;
         this.position.y = y;
         this.velocity.x = dx;
@@ -99,20 +153,35 @@
         this.acceleration.x = dx * settings.particles.effect;
         this.acceleration.y = dy * settings.particles.effect;
         this.age = 0;
-      };
-      Particle.prototype.update = function(deltaTime) {
+        this.colorIndex = colorIndex;
+      }
+      
+      update(deltaTime, mousePos) {
+        // Adiciona interação com o mouse
+        if (mousePos) {
+          const dist = this.position.distanceTo(mousePos);
+          if (dist < settings.interaction.radius) {
+            const force = (settings.interaction.radius - dist) / settings.interaction.radius;
+            const angle = Math.atan2(this.position.y - mousePos.y, this.position.x - mousePos.x);
+            this.velocity.x += Math.cos(angle) * force * settings.interaction.strength;
+            this.velocity.y += Math.sin(angle) * force * settings.interaction.strength;
+          }
+        }
+        
         this.position.x += this.velocity.x * deltaTime;
         this.position.y += this.velocity.y * deltaTime;
         this.velocity.x += this.acceleration.x * deltaTime;
         this.velocity.y += this.acceleration.y * deltaTime;
         this.age += deltaTime;
-      };
-      Particle.prototype.draw = function(context, image) {
-        function ease(t) {
-          return --t * t * t + 1;
-        }
-        var size = image.width * ease(this.age / settings.particles.duration);
-        context.globalAlpha = 1 - this.age / settings.particles.duration;
+      }
+      
+      draw(context, images) {
+        const ease = (t) => --t * t * t + 1;
+        const progress = this.age / settings.particles.duration;
+        const size = settings.particles.size * ease(progress);
+        const image = images[this.colorIndex];
+        
+        context.globalAlpha = 1 - progress;
         context.drawImage(
           image,
           this.position.x - size / 2,
@@ -120,71 +189,58 @@
           size,
           size
         );
-      };
-      return Particle;
-    })();
-    var ParticlePool = (function() {
-      var particles,
-        firstActive = 0,
-        firstFree = 0,
-        duration = settings.particles.duration;
+      }
+    }
 
-      function ParticlePool(length) {
-        particles = new Array(length);
-        for (var i = 0; i < particles.length; i++) {
-          particles[i] = new Particle();
+    // Classe ParticlePool otimizada
+    class ParticlePool {
+      constructor(length) {
+        this.particles = new Array(length).fill().map(() => new Particle());
+        this.firstActive = 0;
+        this.firstFree = 0;
+      }
+      
+      add(x, y, dx, dy, colorIndex) {
+        this.particles[this.firstFree].initialize(x, y, dx, dy, colorIndex);
+        this.firstFree = (this.firstFree + 1) % this.particles.length;
+        if (this.firstActive === this.firstFree) {
+          this.firstActive = (this.firstActive + 1) % this.particles.length;
         }
       }
-      ParticlePool.prototype.add = function(x, y, dx, dy) {
-        particles[firstFree].initialize(x, y, dx, dy);
-        firstFree++;
-        if (firstFree == particles.length) firstFree = 0;
-        if (firstActive == firstFree) firstActive++;
-        if (firstActive == particles.length) firstActive = 0;
-      };
-      ParticlePool.prototype.update = function(deltaTime) {
-        var i;
-        if (firstActive < firstFree) {
-          for (i = firstActive; i < firstFree; i++) {
-            particles[i].update(deltaTime);
+      
+      update(deltaTime, mousePos) {
+        let i = this.firstActive;
+        while (i !== this.firstFree) {
+          this.particles[i].update(deltaTime, mousePos);
+          
+          // Remove partículas velhas
+          if (this.particles[i].age >= settings.particles.duration && i === this.firstActive) {
+            this.firstActive = (this.firstActive + 1) % this.particles.length;
           }
+          
+          i = (i + 1) % this.particles.length;
         }
-        if (firstFree < firstActive) {
-          for (i = firstActive; i < particles.length; i++) {
-            particles[i].update(deltaTime);
-          }
-          for (i = 0; i < firstFree; i++) {
-            particles[i].update(deltaTime);
-          }
+      }
+      
+      draw(context, images) {
+        let i = this.firstActive;
+        while (i !== this.firstFree) {
+          this.particles[i].draw(context, images);
+          i = (i + 1) % this.particles.length;
         }
-        while (particles[firstActive].age >= duration && firstActive != firstFree) {
-          firstActive++;
-          if (firstActive == particles.length) firstActive = 0;
-        }
-      };
-      ParticlePool.prototype.draw = function(context, image) {
-        if (firstActive < firstFree) {
-          for (i = firstActive; i < firstFree; i++) {
-            particles[i].draw(context, image);
-          }
-        }
-        if (firstFree < firstActive) {
-          for (i = firstActive; i < particles.length; i++) {
-            particles[i].draw(context, image);
-          }
-          for (i = 0; i < firstFree; i++) {
-            particles[i].draw(context, image);
-          }
-        }
-      };
-      return ParticlePool;
-    })();
-    (function(canvas) {
-      var context = canvas.getContext("2d"),
-        particles = new ParticlePool(settings.particles.length),
-        particleRate = settings.particles.length / settings.particles.duration,
-        time;
+      }
+    }
 
+    // Inicialização principal
+    (function(canvas) {
+      const context = canvas.getContext("2d");
+      const particles = new ParticlePool(settings.particles.length);
+      const particleRate = settings.particles.length / settings.particles.duration;
+      let time;
+      let mousePos = null;
+      let images = [];
+      
+      // Função para gerar o formato de coração
       function pointOnHeart(t) {
         return new Point(
           160 * Math.pow(Math.sin(t), 3),
@@ -195,64 +251,129 @@
           25
         );
       }
-      var image = (function() {
-        var canvas = document.createElement("canvas"),
-          context = canvas.getContext("2d");
-        canvas.width = settings.particles.size;
-        canvas.height = settings.particles.size;
-
-        function to(t) {
-          var point = pointOnHeart(t);
-          point.x =
-            settings.particles.size / 2 + (point.x * settings.particles.size) / 350;
-          point.y =
-            settings.particles.size / 2 - (point.y * settings.particles.size) / 350;
-          return point;
-        }
-        context.beginPath();
-        var t = -Math.PI;
-        var point = to(t);
-        context.moveTo(point.x, point.y);
-        while (t < Math.PI) {
-          t += 0.01;
-          point = to(t);
-          context.lineTo(point.x, point.y);
-        }
-        context.closePath();
-        context.fillStyle = "#f50b02";
-        context.fill();
-        var image = new Image();
-        image.src = canvas.toDataURL();
-        return image;
-      })();
-
+      
+      // Criar imagens para todas as cores
+      function createImages() {
+        return settings.particles.colors.map(color => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = settings.particles.size;
+          canvas.height = settings.particles.size;
+          
+          function to(t) {
+            const point = pointOnHeart(t);
+            point.x = settings.particles.size / 2 + (point.x * settings.particles.size) / 350;
+            point.y = settings.particles.size / 2 - (point.y * settings.particles.size) / 350;
+            return point;
+          }
+          
+          ctx.beginPath();
+          let t = -Math.PI;
+          let point = to(t);
+          ctx.moveTo(point.x, point.y);
+          while (t < Math.PI) {
+            t += 0.01;
+            point = to(t);
+            ctx.lineTo(point.x, point.y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+          
+          const image = new Image();
+          image.src = canvas.toDataURL();
+          return image;
+        });
+      }
+      
+      // Função de renderização principal
       function render() {
         requestAnimationFrame(render);
-        var newTime = new Date().getTime() / 1000, deltaTime = newTime - (time || newTime);
-        time = newTime; context.clearRect(0, 0, canvas.width, canvas.height);
-        var amount = particleRate * deltaTime;
-        for (var i = 0; i < amount; i++) {
-          var pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
-          var dir = pos.clone().length(settings.particles.velocity);
+        
+        const newTime = performance.now() / 1000;
+        const deltaTime = newTime - (time || newTime);
+        time = newTime;
+        
+        // Limpa o canvas com um retângulo semi-transparente para efeito de rastro
+        context.fillStyle = 'rgba(22, 33, 62, 0.2)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Adiciona novas partículas
+        const amount = particleRate * deltaTime;
+        for (let i = 0; i < amount; i++) {
+          const pos = pointOnHeart(Math.PI - 2 * Math.PI * Math.random());
+          const dir = pos.clone().length(settings.particles.velocity);
+          const colorIndex = Math.floor(Math.random() * settings.particles.colors.length);
+          
           particles.add(
-            canvas.width / 2 + pos.x, canvas.height / 2 - pos.y, dir.x, -dir.y
+            canvas.width / 2 + pos.x,
+            canvas.height / 2 - pos.y,
+            dir.x,
+            -dir.y,
+            colorIndex
           );
         }
-        particles.update(deltaTime);
-        particles.draw(context, image);
+        
+        particles.update(deltaTime, mousePos);
+        particles.draw(context, images);
       }
+      
+      // Redimensionamento responsivo
       function onResize() {
         canvas.width = canvas.clientWidth;
         canvas.height = canvas.clientHeight;
       }
-
-      window.onresize = onResize;
-      setTimeout(function() {
+      
+      // Event listeners para interação
+      canvas.addEventListener('mousemove', (e) => {
+        mousePos = new Point(e.clientX, e.clientY);
+      });
+      
+      canvas.addEventListener('mouseleave', () => {
+        mousePos = null;
+      });
+      
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        mousePos = new Point(touch.clientX, touch.clientY);
+      }, { passive: false });
+      
+      canvas.addEventListener('touchend', () => {
+        mousePos = null;
+      });
+      
+      // Troca de cor ao clicar
+      canvas.addEventListener('click', () => {
+        settings.particles.currentColor = 
+          (settings.particles.currentColor + 1) % settings.particles.colors.length;
+        settings.particles.colors = [
+          getRandomColor(),
+          getRandomColor(),
+          getRandomColor(),
+          getRandomColor()
+        ];
+        images = createImages();
+      });
+      
+      // Função auxiliar para gerar cores aleatórias
+      function getRandomColor() {
+        const hue = Math.floor(Math.random() * 360);
+        return `hsl(${hue}, 100%, 70%)`;
+      }
+      
+      // Inicialização
+      window.addEventListener('resize', onResize);
+      
+      // Criar imagens iniciais
+      images = createImages();
+      
+      // Iniciar animação
+      setTimeout(() => {
         onResize();
         render();
       }, 10);
     })(document.getElementById("pinkboard"));
   </script>
 </body>
-
-</html>
+    </html>
